@@ -1,6 +1,6 @@
 <template>
   <div class="app-container">
-    <eHeader :query="query"/>
+    <Search :query="query"/>
     <!--表格渲染-->
     <el-table v-loading="loading" :data="data" size="small" style="width: 100%;">
       <el-table-column prop="username" label="用户名"/>
@@ -13,9 +13,9 @@
           <span>{{ parseTime(scope.row.createTime) }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="createTime" label="异常详情" width="120px">
+      <el-table-column prop="createTime" label="异常详情" width="100px">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" @click="info(scope.row.exceptionDetail)">查看详情</el-button>
+          <el-button size="mini" type="text" @click="info(scope.row.id)">查看详情</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -27,6 +27,7 @@
     <!--分页组件-->
     <el-pagination
       :total="total"
+      :current-page="page + 1"
       style="margin-top: 8px;"
       layout="total, prev, pager, next, sizes"
       @size-change="sizeChange"
@@ -37,9 +38,10 @@
 <script>
 import initData from '@/mixins/initData'
 import { parseTime } from '@/utils/index'
-import eHeader from './module/header'
+import { getErrDetail } from '@/api/log'
+import Search from './search'
 export default {
-  components: { eHeader },
+  components: { Search },
   mixins: [initData],
   data() {
     return {
@@ -57,16 +59,17 @@ export default {
       this.url = 'api/logs/error'
       const sort = 'id,desc'
       const query = this.query
-      const username = query.username
-      const logType = query.logType
+      const type = query.type
+      const value = query.value
       this.params = { page: this.page, size: this.size, sort: sort }
-      if (username && username) { this.params['username'] = username }
-      if (logType !== '' && logType !== null) { this.params['logType'] = logType }
+      if (type && value) { this.params[type] = value }
       return true
     },
-    info(errorInfo) {
-      this.errorInfo = errorInfo
+    info(id) {
       this.dialog = true
+      getErrDetail(id).then(res => {
+        this.errorInfo = res.exception
+      })
     }
   }
 }

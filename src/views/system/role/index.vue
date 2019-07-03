@@ -1,93 +1,122 @@
 <template>
   <div class="app-container">
-    <eHeader :query="query"/>
-    <!--表格渲染-->
-    <div :style="'height: auto;max-height:' + height + 'overflow-y: auto;'">
-      <el-table v-loading="loading" :data="data" highlight-current-row size="small" style="width: 100%;" @current-change="handleCurrentChange">
-        <el-table-column prop="name" label="名称"/>
-        <el-table-column prop="dataScope" label="数据权限"/>
-        <el-table-column prop="remark" label="描述"/>
-        <el-table-column prop="createTime" label="创建日期">
-          <template slot-scope="scope">
-            <span>{{ parseTime(scope.row.createTime) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="150px" align="center">
-          <template slot-scope="scope">
-            <edit v-if="checkPermission(['ADMIN','ROLES_ALL','ROLES_EDIT'])" :data="scope.row" :sup_this="sup_this"/>
-            <el-popover
-              v-if="checkPermission(['ADMIN','ROLES_ALL','ROLES_DELETE'])"
-              :ref="scope.row.id"
-              placement="top"
-              width="180">
-              <p>确定删除本条数据吗？</p>
-              <div style="text-align: right; margin: 0">
-                <el-button size="mini" type="text" @click="$refs[scope.row.id].doClose()">取消</el-button>
-                <el-button :loading="delLoading" type="primary" size="mini" @click="subDelete(scope.row.id)">确定</el-button>
-              </div>
-              <el-button slot="reference" type="danger" size="mini">删除</el-button>
-            </el-popover>
-          </template>
-        </el-table-column>
-      </el-table>
+    <!--表单组件-->
+    <eForm ref="form" :is-add="isAdd"/>
+    <!--工具栏-->
+    <div class="head-container">
+      <!-- 搜索 -->
+      <el-input v-model="query.value" clearable placeholder="输入名称搜索" style="width: 200px;" class="filter-item" @keyup.enter.native="toQuery"/>
+      <el-button class="filter-item" size="mini" type="success" icon="el-icon-search" @click="toQuery">搜索</el-button>
+      <!-- 新增 -->
+      <div v-permission="['ADMIN','ROLES_ALL','ROLES_CREATE']" style="display: inline-block;margin: 0px 2px;">
+        <el-button
+          class="filter-item"
+          size="mini"
+          type="primary"
+          icon="el-icon-plus"
+          @click="add">新增</el-button>
+      </div>
     </div>
-    <!--分页组件-->
-    <el-pagination
-      :total="total"
-      style="margin-top: 8px;"
-      layout="total, prev, pager, next, sizes"
-      @size-change="sizeChange"
-      @current-change="pageChange"/>
-    <!--这里是授权模块代码-->
-    <el-row :gutter="20" style="margin-top: 5px;">
-      <!--权限分配-->
-      <el-col :span="12">
+    <el-row :gutter="15">
+      <!--角色管理-->
+      <el-col :xs="24" :sm="24" :md="16" :lg="16" :xl="17">
         <el-card class="box-card" shadow="never">
           <div slot="header" class="clearfix">
-            <span class="role-span">权限分配</span>
-            <el-button
-              v-if="showButton && checkPermission(['ADMIN','ROLES_ALL','ROLES_EDIT'])"
-              :loading="permissionLoading"
-              icon="el-icon-check"
-              size="mini"
-              style="float: right; padding: 4px 10px"
-              type="info"
-              @click="savePermission">保存</el-button>
+            <span class="role-span">角色列表</span>
+            <div id="opt" style="float: right">
+              <el-radio-group v-model="opt" size="mini">
+                <el-radio-button label="菜单分配"/>
+                <el-radio-button label="权限分配"/>
+              </el-radio-group>
+            </div>
           </div>
-          <div style="min-height: 320px;max-height:500px;overflow-y: auto;">
-            <el-tree
-              ref="permission"
-              :data="permissions"
-              :default-checked-keys="permissionIds"
-              :props="defaultProps"
-              show-checkbox
-              node-key="id"/>
-          </div>
+          <el-table v-loading="loading" :data="data" highlight-current-row size="small" style="width: 100%;" @current-change="handleCurrentChange">
+            <el-table-column prop="name" label="名称"/>
+            <el-table-column prop="dataScope" label="数据权限"/>
+            <el-table-column prop="level" label="角色级别"/>
+            <el-table-column :show-overflow-tooltip="true" prop="remark" label="描述"/>
+            <el-table-column :show-overflow-tooltip="true" prop="createTime" label="创建日期">
+              <template slot-scope="scope">
+                <span>{{ parseTime(scope.row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="checkPermission(['ADMIN','ROLES_ALL','ROLES_EDIT','ROLES_DELETE'])" label="操作" width="130px" align="center">
+              <template slot-scope="scope">
+                <el-button v-permission="['ADMIN','ROLES_ALL','ROLES_EDIT']" size="mini" type="primary" icon="el-icon-edit" @click="edit(scope.row)"/>
+                <el-popover
+                  v-permission="['ADMIN','ROLES_ALL','ROLES_DELETE']"
+                  :ref="scope.row.id"
+                  placement="top"
+                  width="180">
+                  <p>确定删除本条数据吗？</p>
+                  <div style="text-align: right; margin: 0">
+                    <el-button size="mini" type="text" @click="$refs[scope.row.id].doClose()">取消</el-button>
+                    <el-button :loading="delLoading" type="primary" size="mini" @click="subDelete(scope.row.id)">确定</el-button>
+                  </div>
+                  <el-button slot="reference" type="danger" icon="el-icon-delete" size="mini"/>
+                </el-popover>
+              </template>
+            </el-table-column>
+          </el-table>
+          <!--分页组件-->
+          <el-pagination
+            :total="total"
+            :current-page="page + 1"
+            style="margin-top: 8px;"
+            layout="total, prev, pager, next, sizes"
+            @size-change="sizeChange"
+            @current-change="pageChange"/>
         </el-card>
       </el-col>
-      <!--菜单分配-->
-      <el-col :span="12">
-        <el-card class="box-card" shadow="never">
+      <!-- 授权 -->
+      <el-col :xs="24" :sm="24" :md="8" :lg="8" :xl="7">
+        <el-card v-show="opt === '菜单分配'" class="box-card" shadow="never">
           <div slot="header" class="clearfix">
-            <span class="role-span">菜单分配</span>
+            <el-tooltip class="item" effect="dark" content="选择指定角色分配菜单" placement="top">
+              <span class="role-span">菜单分配</span>
+            </el-tooltip>
             <el-button
-              v-if="showButton && checkPermission(['ADMIN','ROLES_ALL','ROLES_EDIT'])"
+              v-permission="['ADMIN','ROLES_ALL','ROLES_EDIT']"
+              :disabled="!showButton"
               :loading="menuLoading"
               icon="el-icon-check"
               size="mini"
-              style="float: right; padding: 4px 10px"
-              type="info"
+              style="float: right; padding: 6px 9px"
+              type="primary"
               @click="saveMenu">保存</el-button>
           </div>
-          <div style="min-height: 320px;max-height:500px;overflow-y: auto;">
-            <el-tree
-              ref="menu"
-              :data="menus"
-              :default-checked-keys="menuIds"
-              :props="defaultProps"
-              show-checkbox
-              node-key="id"/>
+          <el-tree
+            ref="menu"
+            :data="menus"
+            :default-checked-keys="menuIds"
+            :props="defaultProps"
+            accordion
+            show-checkbox
+            node-key="id"/>
+        </el-card>
+        <el-card v-show="opt === '权限分配'" class="box-card" shadow="never">
+          <div slot="header" class="clearfix">
+            <el-tooltip class="item" effect="dark" content="选择指定角色分配权限" placement="top">
+              <span class="role-span">权限分配</span>
+            </el-tooltip>
+            <el-button
+              v-permission="['ADMIN','ROLES_ALL','ROLES_EDIT']"
+              :disabled="!showButton"
+              :loading="permissionLoading"
+              icon="el-icon-check"
+              size="mini"
+              style="float: right; padding: 6px 9px"
+              type="primary"
+              @click="savePermission">保存</el-button>
           </div>
+          <el-tree
+            ref="permission"
+            :data="permissions"
+            :default-checked-keys="permissionIds"
+            :props="defaultProps"
+            show-checkbox
+            accordion
+            node-key="id"/>
         </el-card>
       </el-col>
     </el-row>
@@ -101,11 +130,10 @@ import { del } from '@/api/role'
 import { getPermissionTree } from '@/api/permission'
 import { getMenusTree } from '@/api/menu'
 import { parseTime } from '@/utils/index'
-import eHeader from './module/header'
-import edit from './module/edit'
+import eForm from './form'
 import { editPermission, editMenu, get } from '@/api/role'
 export default {
-  components: { eHeader, edit },
+  components: { eForm },
   mixins: [initData],
   data() {
     return {
@@ -113,9 +141,8 @@ export default {
         children: 'children',
         label: 'label'
       },
-      currentId: 0, permissionLoading: false, menuLoading: false, showButton: false,
-      delLoading: false, sup_this: this, permissions: [], permissionIds: [], menus: [], menuIds: [],
-      height: document.documentElement.clientHeight - 94.5 - 260 + 'px;'
+      currentId: 0, permissionLoading: false, menuLoading: false, showButton: false, opt: '菜单分配',
+      delLoading: false, permissions: [], permissionIds: [], menus: [], menuIds: []
     }
   },
   created() {
@@ -125,12 +152,6 @@ export default {
       this.init()
     })
   },
-  mounted: function() {
-    const that = this
-    window.onresize = function temp() {
-      that.height = document.documentElement.clientHeight - 94.5 - 260 + 'px;'
-    }
-  },
   methods: {
     parseTime,
     checkPermission,
@@ -139,7 +160,7 @@ export default {
       this.$refs.menu.setCheckedKeys([])
       this.showButton = false
       this.url = 'api/roles'
-      const sort = 'id,desc'
+      const sort = 'level,asc'
       const query = this.query
       const value = query.value
       this.params = { page: this.page, size: this.size, sort: sort }
@@ -151,6 +172,7 @@ export default {
       del(id).then(res => {
         this.delLoading = false
         this.$refs[id].doClose()
+        this.dleChangePage()
         this.init()
         this.$notify({
           title: '删除成功',
@@ -261,12 +283,29 @@ export default {
           }
         }
       })
+    },
+    add() {
+      this.isAdd = true
+      this.$refs.form.dialog = true
+    },
+    edit(data) {
+      this.isAdd = false
+      const _this = this.$refs.form
+      _this.deptIds = []
+      _this.form = { id: data.id, name: data.name, remark: data.remark, depts: data.depts, dataScope: data.dataScope, level: data.level }
+      if (_this.form.dataScope === '自定义') {
+        _this.getDepts()
+      }
+      for (let i = 0; i < _this.form.depts.length; i++) {
+        _this.deptIds[i] = _this.form.depts[i].id
+      }
+      _this.dialog = true
     }
   }
 }
 </script>
 
-<style scoped>
+<style rel="stylesheet/scss" lang="scss">
   .role-span {
     font-weight: bold;color: #303133;
     font-size: 15px;

@@ -1,6 +1,15 @@
 <template>
   <div class="app-container">
-    <eHeader :query="query"/>
+    <!--工具栏-->
+    <div class="head-container">
+      <!-- 搜索 -->
+      <el-input v-model="query.value" clearable placeholder="输入关键词搜索" style="width: 200px;" class="filter-item" @keyup.enter.native="toQuery"/>
+      <el-button class="filter-item" size="mini" type="success" icon="el-icon-search" @click="toQuery">搜索</el-button>
+      <div style="display: inline-block;">
+        <!-- 清空缓存 -->
+        <el-button v-permission="['ADMIN','REDIS_ALL','REDIS_DELETE']" :loading="deleteAllLoading" type="warning" size="mini" class="filter-item" icon="el-icon-delete" @click="deleteAll">清空缓存</el-button>
+      </div>
+    </div>
     <!--表格渲染-->
     <el-table v-loading="loading" :data="data" size="small" style="width: 100%;">
       <el-table-column label="序号" width="80" align="center">
@@ -16,11 +25,10 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="150px" align="center">
+      <el-table-column v-if="checkPermission(['ADMIN','REDIS_ALL','REDIS_EDIT','REDIS_DELETE'])" label="操作" width="130px" align="center">
         <template slot-scope="scope">
-          <edit v-if="checkPermission(['ADMIN','REDIS_ALL','REDIS_EDIT'])" :data="scope.row" :sup_this="sup_this"/>
           <el-popover
-            v-if="checkPermission(['ADMIN','REDIS_ALL','REDIS_DELETE'])"
+            v-permission="['ADMIN','REDIS_ALL','REDIS_DELETE']"
             :ref="scope.$index"
             placement="top"
             width="180">
@@ -29,7 +37,7 @@
               <el-button size="mini" type="text" @click="$refs[scope.$index].doClose()">取消</el-button>
               <el-button :loading="delLoading" type="primary" size="mini" @click="subDelete(scope.$index, scope.row)">确定</el-button>
             </div>
-            <el-button slot="reference" type="danger" size="mini">删除</el-button>
+            <el-button slot="reference" type="danger" icon="el-icon-delete" size="mini"/>
           </el-popover>
         </template>
       </el-table-column>
@@ -37,6 +45,7 @@
     <!--分页组件-->
     <el-pagination
       :total="total"
+      :current-page="page + 1"
       style="margin-top: 8px;"
       layout="total, prev, pager, next, sizes"
       @size-change="sizeChange"
@@ -47,20 +56,15 @@
 <script>
 import checkPermission from '@/utils/permission' // 权限判断函数
 import initData from '@/mixins/initData'
-import { del } from '@/api/redis'
-import { getPermissionTree } from '@/api/permission'
-import eHeader from './module/header'
-import edit from './module/edit'
+import { del, delAll } from '@/api/redis'
 export default {
-  components: { eHeader, edit },
   mixins: [initData],
   data() {
     return {
-      delLoading: false, sup_this: this, permissions: []
+      delLoading: false, permissions: [], deleteAllLoading: false
     }
   },
   created() {
-    this.getPermissions()
     this.$nextTick(() => {
       this.init()
     })
@@ -84,6 +88,7 @@ export default {
       del(row.key).then(res => {
         this.delLoading = false
         this.$refs[index].doClose()
+        this.dleChangePage()
         this.init()
         this.$notify({
           title: '删除成功',
@@ -96,9 +101,18 @@ export default {
         console.log(err.response.data.message)
       })
     },
-    getPermissions() {
-      getPermissionTree().then(res => {
-        this.permissions = res
+    deleteAll() {
+      this.$confirm('你确定要清空缓存数据吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.deleteAllLoading = true
+        delAll().then(res => {
+          this.page = 0
+          this.init()
+          this.deleteAllLoading = false
+        })
       })
     }
   }

@@ -4,17 +4,29 @@
       <div class="my-code">点击字典查看详情</div>
     </div>
     <div v-else>
-      <eHeader ref="header" :query="query" :dict-id="dictId"/>
+      <!--工具栏-->
+      <div class="head-container">
+        <!-- 搜索 -->
+        <el-input v-model="query.value" clearable placeholder="输入字典标签查询" style="width: 200px;" class="filter-item" @keyup.enter.native="toQuery"/>
+        <el-button class="filter-item" size="mini" type="success" icon="el-icon-search" @click="toQuery">搜索</el-button>
+      </div>
+      <!--表单组件-->
+      <eForm ref="form" :is-add="isAdd" :dict-id="dictId"/>
       <!--表格渲染-->
       <el-table v-loading="loading" :data="data" size="small" style="width: 100%;">
+        <el-table-column label="所属字典">
+          <template slot-scope="scope">
+            {{ dictName }}
+          </template>
+        </el-table-column>
         <el-table-column prop="label" label="字典标签"/>
         <el-table-column prop="value" label="字典值"/>
         <el-table-column prop="sort" label="排序"/>
-        <el-table-column label="操作" width="150px" align="center">
+        <el-table-column v-if="checkPermission(['ADMIN','DICT_ALL','DICT_EDIT','DICT_DELETE'])" label="操作" width="130px" align="center">
           <template slot-scope="scope">
-            <edit v-if="checkPermission(['ADMIN','DICT_ALL','DICT_EDIT'])" :dict-id="dictId" :data="scope.row" :sup_this="sup_this"/>
+            <el-button v-permission="['ADMIN','DICT_ALL','DICT_EDIT']" size="mini" type="primary" icon="el-icon-edit" @click="edit(scope.row)"/>
             <el-popover
-              v-if="checkPermission(['ADMIN','DICT_ALL','DICT_DELETE'])"
+              v-permission="['ADMIN','DICT_ALL','DICT_DELETE']"
               :ref="scope.row.id"
               placement="top"
               width="180">
@@ -23,7 +35,7 @@
                 <el-button size="mini" type="text" @click="$refs[scope.row.id].doClose()">取消</el-button>
                 <el-button :loading="delLoading" type="primary" size="mini" @click="subDelete(scope.row.id)">确定</el-button>
               </div>
-              <el-button slot="reference" type="danger" size="mini">删除</el-button>
+              <el-button slot="reference" type="danger" icon="el-icon-delete" size="mini"/>
             </el-popover>
           </template>
         </el-table-column>
@@ -31,6 +43,7 @@
       <!--分页组件-->
       <el-pagination
         :total="total"
+        :current-page="page + 1"
         style="margin-top: 8px;"
         layout="total, prev, pager, next, sizes"
         @size-change="sizeChange"
@@ -43,14 +56,13 @@
 import checkPermission from '@/utils/permission'
 import initData from '@/mixins/initData'
 import { del } from '@/api/dictDetail'
-import eHeader from './module/header'
-import edit from './module/edit'
+import eForm from './form'
 export default {
-  components: { eHeader, edit },
+  components: { eForm },
   mixins: [initData],
   data() {
     return {
-      delLoading: false, sup_this: this, dictName: '', dictId: 0
+      delLoading: false, dictName: '', dictId: 0
     }
   },
   created() {
@@ -71,6 +83,7 @@ export default {
       del(id).then(res => {
         this.delLoading = false
         this.$refs[id].doClose()
+        this.dleChangePage()
         this.init()
         this.$notify({
           title: '删除成功',
@@ -82,6 +95,17 @@ export default {
         this.$refs[id].doClose()
         console.log(err.response.data.message)
       })
+    },
+    edit(data) {
+      this.isAdd = false
+      const _this = this.$refs.form
+      _this.form = {
+        id: data.id,
+        label: data.label,
+        value: data.value,
+        sort: data.sort
+      }
+      _this.dialog = true
     }
   }
 }
